@@ -1,0 +1,37 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+jobs:
+  mlton-version:
+    runs-on: ubuntu-latest
+    outputs:
+      MLTON_VERSION: ${{ steps.mlton-version.outputs.MLTON_VERSION }}
+    steps:
+      - name: MLTON_VERSION
+        id: mlton-version
+        run: |
+          MLTON_VERSION=$( echo '${{ github.ref_name }}' | sed -En 's;on-([0-9]{8})-release;\1;p')
+          if [ -n "${MLTON_VERSION}" ]; then echo "MLTON_VERSION=${MLTON_VERSION}" >> "$GITHUB_OUTPUT"; else echo "Unable to determine MLTON_VERSION"; exit 1; fi
+
+  source-release:
+    runs-on: ubuntu-latest
+    needs: mlton-version
+    env:
+      MLTON_VERSION: ${{ needs.mlton-version.outputs.MLTON_VERSION }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install guide dependencies
+        uses: ./.github/actions/install-guide-dependencies
+      - name: Make source release
+        run: make MLTON_VERSION=${MLTON_VERSION} source-release
+      - name: Upload source release
+        run: gh release upload on-${MLTON_VERSION}-release mlton-${MLTON_VERSION}.src.tgz --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
